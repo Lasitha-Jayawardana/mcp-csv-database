@@ -874,23 +874,49 @@ def main():
     atexit.register(cleanup)
     
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description="CSV Database MCP Server")
+    parser = argparse.ArgumentParser(
+        description="CSV Database MCP Server - Analyze CSV files with AI assistance",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Start server and immediately analyze CSV files in a folder
+  mcp-csv-database --csv-folder /path/to/data
+
+  # Start with custom table prefix
+  mcp-csv-database --csv-folder ./sales_data --table-prefix sales_
+
+  # Start with HTTP transport for remote access
+  mcp-csv-database --csv-folder ./data --transport sse --port 8080
+
+Available analysis tools once started:
+  • get_data_summary(table_name) - Comprehensive data overview  
+  • get_column_stats(table_name, column_name) - Detailed column analysis
+  • analyze_missing_data(table_name) - Data quality assessment
+  • find_duplicates(table_name) - Duplicate detection
+  • execute_sql_query(query) - Custom SQL analysis
+        """
+    )
+    parser.add_argument(
+        "folder_path", 
+        nargs="?",
+        help="Path to folder containing CSV files to analyze (recommended)"
+    )
     parser.add_argument(
         "--csv-folder", 
         type=str, 
-        help="Path to folder containing CSV files to auto-load on startup"
+        help="Alternative way to specify CSV folder path"
     )
     parser.add_argument(
         "--table-prefix", 
         type=str, 
         default="", 
-        help="Optional prefix for table names"
+        help="Optional prefix for table names (e.g., 'sales_')"
     )
     parser.add_argument(
         "--transport",
         choices=["stdio", "sse", "streamable-http"],
         default="stdio",
-        help="Transport type (default: stdio)"
+        help="Transport type: stdio (local), sse or streamable-http (remote)"
     )
     parser.add_argument(
         "--port",
@@ -901,13 +927,21 @@ def main():
     
     args = parser.parse_args()
     
-    print("🗃️  CSV Database MCP Server")
+    print("🗃️  CSV Database MCP Server - Analyze CSV files with AI assistance")
+    
+    # Determine CSV folder from positional argument or flag
+    csv_folder_path = args.folder_path or args.csv_folder
     
     # Auto-load CSV files if folder specified
-    if args.csv_folder:
-        print(f"📁 Auto-loading CSV files from: {args.csv_folder}")
-        result = load_csv_folder(args.csv_folder, args.table_prefix)
+    if csv_folder_path:
+        print(f"📁 Auto-loading CSV files from: {csv_folder_path}")
+        result = load_csv_folder(csv_folder_path, args.table_prefix)
         print(result)
+        print()
+        print("✅ Ready for data analysis! Your CSV files are loaded and ready.")
+    else:
+        print("💡 Tip: For instant analysis, restart with a CSV folder:")
+        print("   mcp-csv-database /path/to/your/csv/files")
         print()
     
     print("Ready to load CSV files and execute SQL queries!")
