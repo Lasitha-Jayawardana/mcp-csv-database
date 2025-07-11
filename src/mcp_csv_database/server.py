@@ -469,6 +469,365 @@ def clear_database() -> str:
         return f"Error clearing database: {str(e)}"
 
 
+@mcp.tool()
+def get_column_stats(table_name: str, column_name: str) -> str:
+    """
+    Get statistical summary for a specific column.
+    
+    Args:
+        table_name: Name of the table
+        column_name: Name of the column to analyze
+    
+    Returns:
+        Statistical summary including count, nulls, unique values, and distribution info
+    """
+    if not _db_connection:
+        return "Error: No database loaded. Use load_csv_folder tool first."
+    
+    try:
+        cursor = _db_connection.cursor()
+        
+        # Check if table and column exist
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        columns = [col[1] for col in cursor.fetchall()]
+        if column_name not in columns:
+            return f"Column '{column_name}' not found in table '{table_name}'. Available columns: {columns}"
+        
+        stats = []
+        stats.append(f"=== Column Statistics: {table_name}.{column_name} ===")
+        
+        # Basic counts
+        cursor.execute(f'SELECT COUNT(*) FROM "{table_name}"')
+        total_rows = cursor.fetchone()[0]
+        
+        cursor.execute(f'SELECT COUNT("{column_name}") FROM "{table_name}" WHERE "{column_name}" IS NOT NULL')
+        non_null_count = cursor.fetchone()[0]
+        null_count = total_rows - non_null_count
+        
+        cursor.execute(f'SELECT COUNT(DISTINCT "{column_name}") FROM "{table_name}" WHERE "{column_name}" IS NOT NULL')
+        unique_count = cursor.fetchone()[0]
+        
+        stats.append(f"Total rows: {total_rows}")
+        stats.append(f"Non-null values: {non_null_count}")
+        stats.append(f"Null values: {null_count} ({null_count/total_rows*100:.1f}%)")
+        stats.append(f"Unique values: {unique_count}")
+        
+        # Try numeric statistics
+        try:
+            cursor.execute(f'''
+                SELECT 
+                    MIN(CAST("{column_name}" AS REAL)),
+                    MAX(CAST("{column_name}" AS REAL)),
+                    AVG(CAST("{column_name}" AS REAL))
+                FROM "{table_name}" 
+                WHERE "{column_name}" IS NOT NULL 
+                AND "{column_name}" != ''
+            ''')
+            min_val, max_val, avg_val = cursor.fetchone()
+            if min_val is not None:
+                stats.append(f"\nNumeric Statistics:")
+                stats.append(f"Min: {min_val}")
+                stats.append(f"Max: {max_val}")
+                stats.append(f"Average: {avg_val:.2f}")
+        except:
+            pass
+        
+        # Most common values
+        cursor.execute(f'''
+            SELECT "{column_name}", COUNT(*) as freq 
+            FROM "{table_name}" 
+            WHERE "{column_name}" IS NOT NULL 
+            GROUP BY "{column_name}" 
+            ORDER BY freq DESC 
+            LIMIT 5
+        ''')
+        common_values = cursor.fetchall()
+        
+        if common_values:
+            stats.append(f"\nMost Common Values:")
+            for value, freq in common_values:
+                percentage = freq / total_rows * 100
+                stats.append(f"  '{value}': {freq} ({percentage:.1f}%)")
+        
+        return "\n".join(stats)
+        
+    except Exception as e:
+        return f"Error analyzing column: {str(e)}"
+
+
+@mcp.tool()
+def find_duplicates(table_name: str, columns: str = "all") -> str:
+    """
+    Find duplicate rows in a table.
+    
+    Args:
+        table_name: Name of the table to check
+        columns: Comma-separated column names to check for duplicates, or "all" for all columns
+    
+    Returns:
+        Information about duplicate rows found
+    """
+    if not _db_connection:
+        return "Error: No database loaded. Use load_csv_folder tool first."
+    
+    try:
+        cursor = _db_connection.cursor()
+        
+        # Get table columns
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        all_columns = [col[1] for col in cursor.fetchall()]
+        
+        if columns.lower() == "all":
+            check_columns = all_columns
+        else:
+            check_columns = [col.strip() for col in columns.split(",")]
+            # Validate columns exist
+            invalid_cols = [col for col in check_columns if col not in all_columns]
+            if invalid_cols:
+                return f"Invalid columns: {invalid_cols}. Available columns: {all_columns}"
+        
+        # Build query to find duplicates
+        column_list = ", ".join([f'"{col}"' for col in check_columns])
+        
+        duplicate_query = f'''
+            SELECT {column_list}, COUNT(*) as duplicate_count
+            FROM "{table_name}"
+            GROUP BY {column_list}
+            HAVING COUNT(*) > 1
+            ORDER BY duplicate_count DESC
+        '''
+        
+        cursor.execute(duplicate_query)
+        duplicates = cursor.fetchall()
+        
+        if not duplicates:
+            return f"No duplicate rows found in table '{table_name}' for columns: {check_columns}"
+        
+        # Count total duplicate rows
+        cursor.execute(f'''
+            SELECT SUM(duplicate_count - 1) FROM (
+                SELECT COUNT(*) as duplicate_count
+                FROM "{table_name}"
+                GROUP BY {column_list}
+                HAVING COUNT(*) > 1
+            )
+        ''')
+        total_duplicate_rows = cursor.fetchone()[0] or 0
+        
+        result = []
+        result.append(f"=== Duplicate Analysis: {table_name} ===")
+        result.append(f"Columns checked: {check_columns}")
+        result.append(f"Duplicate groups found: {len(duplicates)}")
+        result.append(f"Total duplicate rows: {total_duplicate_rows}")
+        result.append("")
+        
+        # Show top duplicate groups
+        result.append("Top duplicate groups:")
+        column_names = [desc[0] for desc in cursor.description[:-1]]  # Exclude count column
+        
+        for i, row in enumerate(duplicates[:10]):  # Show top 10
+            values = row[:-1]  # Exclude count
+            count = row[-1]
+            value_pairs = [f"{col}='{val}'" for col, val in zip(column_names, values)]
+            result.append(f"  {i+1}. {', '.join(value_pairs)} (appears {count} times)")
+        
+        if len(duplicates) > 10:
+            result.append(f"  ... and {len(duplicates) - 10} more duplicate groups")
+        
+        return "\n".join(result)
+        
+    except Exception as e:
+        return f"Error finding duplicates: {str(e)}"
+
+
+@mcp.tool()
+def analyze_missing_data(table_name: str) -> str:
+    """
+    Analyze missing data patterns in a table.
+    
+    Args:
+        table_name: Name of the table to analyze
+    
+    Returns:
+        Summary of missing data patterns across all columns
+    """
+    if not _db_connection:
+        return "Error: No database loaded. Use load_csv_folder tool first."
+    
+    try:
+        cursor = _db_connection.cursor()
+        
+        # Get total row count
+        cursor.execute(f'SELECT COUNT(*) FROM "{table_name}"')
+        total_rows = cursor.fetchone()[0]
+        
+        # Get all columns
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        columns = [col[1] for col in cursor.fetchall()]
+        
+        result = []
+        result.append(f"=== Missing Data Analysis: {table_name} ===")
+        result.append(f"Total rows: {total_rows}")
+        result.append("")
+        
+        missing_info = []
+        for column in columns:
+            # Count null and empty values
+            cursor.execute(f'''
+                SELECT 
+                    COUNT(*) - COUNT("{column}") as null_count,
+                    SUM(CASE WHEN "{column}" = '' THEN 1 ELSE 0 END) as empty_count
+                FROM "{table_name}"
+            ''')
+            null_count, empty_count = cursor.fetchone()
+            missing_count = null_count + empty_count
+            missing_percentage = (missing_count / total_rows) * 100 if total_rows > 0 else 0
+            
+            missing_info.append((column, missing_count, missing_percentage, null_count, empty_count))
+        
+        # Sort by missing percentage (highest first)
+        missing_info.sort(key=lambda x: x[2], reverse=True)
+        
+        result.append("Missing data by column:")
+        result.append("Column | Missing | Percentage | Nulls | Empty")
+        result.append("-" * 50)
+        
+        for column, missing_count, missing_pct, null_count, empty_count in missing_info:
+            result.append(f"{column:<15} | {missing_count:>7} | {missing_pct:>8.1f}% | {null_count:>5} | {empty_count:>5}")
+        
+        # Summary insights
+        result.append("")
+        high_missing = [info for info in missing_info if info[2] > 50]
+        if high_missing:
+            result.append("⚠️  Columns with >50% missing data:")
+            for column, _, missing_pct, _, _ in high_missing:
+                result.append(f"  - {column}: {missing_pct:.1f}%")
+        
+        no_missing = [info for info in missing_info if info[1] == 0]
+        if no_missing:
+            result.append("")
+            result.append(f"✅ Complete columns (no missing data): {len(no_missing)}")
+            if len(no_missing) <= 10:
+                complete_cols = [info[0] for info in no_missing]
+                result.append(f"  {', '.join(complete_cols)}")
+        
+        return "\n".join(result)
+        
+    except Exception as e:
+        return f"Error analyzing missing data: {str(e)}"
+
+
+@mcp.tool()
+def get_data_summary(table_name: str) -> str:
+    """
+    Get a comprehensive summary of the table data.
+    
+    Args:
+        table_name: Name of the table to summarize
+    
+    Returns:
+        Quick overview with key insights about the data
+    """
+    if not _db_connection:
+        return "Error: No database loaded. Use load_csv_folder tool first."
+    
+    try:
+        cursor = _db_connection.cursor()
+        
+        # Basic table info
+        cursor.execute(f'SELECT COUNT(*) FROM "{table_name}"')
+        total_rows = cursor.fetchone()[0]
+        
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        columns_info = cursor.fetchall()
+        total_columns = len(columns_info)
+        
+        result = []
+        result.append(f"=== Data Summary: {table_name} ===")
+        result.append(f"Dimensions: {total_rows:,} rows × {total_columns} columns")
+        result.append("")
+        
+        # Analyze each column quickly
+        numeric_cols = []
+        text_cols = []
+        
+        for col_info in columns_info:
+            column = col_info[1]
+            
+            # Check if column has numeric data
+            try:
+                cursor.execute(f'''
+                    SELECT COUNT(*) 
+                    FROM "{table_name}" 
+                    WHERE "{column}" IS NOT NULL 
+                    AND "{column}" != ''
+                    AND CAST("{column}" AS REAL) = CAST("{column}" AS REAL)
+                    LIMIT 1
+                ''')
+                if cursor.fetchone()[0] > 0:
+                    # Get some numeric stats
+                    cursor.execute(f'''
+                        SELECT 
+                            MIN(CAST("{column}" AS REAL)),
+                            MAX(CAST("{column}" AS REAL)),
+                            COUNT(DISTINCT "{column}")
+                        FROM "{table_name}" 
+                        WHERE "{column}" IS NOT NULL 
+                        AND "{column}" != ''
+                    ''')
+                    min_val, max_val, unique_count = cursor.fetchone()
+                    numeric_cols.append((column, min_val, max_val, unique_count))
+                else:
+                    raise ValueError("Not numeric")
+            except:
+                # Text column
+                cursor.execute(f'''
+                    SELECT COUNT(DISTINCT "{column}")
+                    FROM "{table_name}" 
+                    WHERE "{column}" IS NOT NULL 
+                    AND "{column}" != ''
+                ''')
+                unique_count = cursor.fetchone()[0]
+                text_cols.append((column, unique_count))
+        
+        # Report numeric columns
+        if numeric_cols:
+            result.append("Numeric Columns:")
+            for column, min_val, max_val, unique_count in numeric_cols:
+                result.append(f"  • {column}: {min_val} to {max_val} ({unique_count:,} unique values)")
+        
+        # Report text columns
+        if text_cols:
+            result.append("")
+            result.append("Text Columns:")
+            for column, unique_count in text_cols:
+                if unique_count == total_rows:
+                    result.append(f"  • {column}: All unique values (likely ID/identifier)")
+                elif unique_count < 20:
+                    result.append(f"  • {column}: {unique_count} categories (likely categorical)")
+                else:
+                    result.append(f"  • {column}: {unique_count:,} unique values")
+        
+        # Quick data quality check
+        result.append("")
+        cursor.execute(f'''
+            SELECT 
+                SUM(CASE WHEN {' OR '.join([f'"{col[1]}" IS NULL OR "{col[1]}" = ""' for col in columns_info])} THEN 1 ELSE 0 END) as rows_with_missing
+            FROM "{table_name}"
+        ''')
+        rows_with_missing = cursor.fetchone()[0]
+        complete_rows = total_rows - rows_with_missing
+        
+        result.append("Data Quality:")
+        result.append(f"  • Complete rows: {complete_rows:,} ({complete_rows/total_rows*100:.1f}%)")
+        result.append(f"  • Rows with missing data: {rows_with_missing:,} ({rows_with_missing/total_rows*100:.1f}%)")
+        
+        return "\n".join(result)
+        
+    except Exception as e:
+        return f"Error generating data summary: {str(e)}"
+
+
 @mcp.prompt()
 def analyze_data_prompt(table_name: str, analysis_type: str = "summary") -> str:
     """
@@ -555,10 +914,14 @@ def main():
     print("\nAvailable tools:")
     print("- load_csv_folder: Load CSV files from a folder")
     print("- execute_sql_query: Run SQL queries on loaded data")
+    print("- get_data_summary: Get comprehensive data overview")
+    print("- get_column_stats: Statistical analysis for specific columns")
+    print("- analyze_missing_data: Analyze missing data patterns")
+    print("- find_duplicates: Find duplicate rows in tables")
     print("- get_table_info: Get detailed table information")
-    print("- clear_database: Clear all loaded data")
     print("- get_database_schema: View database schema")
     print("- list_loaded_tables: List loaded tables")
+    print("- clear_database: Clear all loaded data")
     
     # Run the server with specified transport
     if args.transport == "stdio":
