@@ -158,7 +158,7 @@ class TestCSVDatabaseServer:
         result = execute_sql_query(
             """
             SELECT category, COUNT(*) as count, AVG(price) as avg_price
-            FROM sales 
+            FROM sales
             GROUP BY category
         """
         )
@@ -185,8 +185,8 @@ class TestCSVDatabaseServer:
         load_csv_folder(str(temp_dir))
         result = execute_sql_query(
             """
-            SELECT s.product, c.name 
-            FROM sales s 
+            SELECT s.product, c.name
+            FROM sales s
             JOIN customers c ON s.customer_id = c.customer_id
         """
         )
@@ -234,7 +234,9 @@ class TestCSVDatabaseServer:
     def test_get_query_plan(self, sample_data_dir):
         """Test getting query execution plan"""
         load_csv_folder(str(sample_data_dir))
-        result = get_query_plan("SELECT * FROM sales WHERE category = 'Electronics'")
+        result = get_query_plan(
+            "SELECT * FROM sales WHERE category = 'Electronics'"
+        )
 
         assert "Query Execution Plan" in result
         assert "Step" in result
@@ -295,7 +297,11 @@ class TestCSVDatabaseServer:
         # Create data with missing values
         temp_dir = sample_data_dir
         data_with_missing = pd.DataFrame(
-            {"name": ["Alice", "Bob", None], "age": [25, None, 35], "city": ["NYC", "LA", ""]}
+            {
+                "name": ["Alice", "Bob", None],
+                "age": [25, None, 35],
+                "city": ["NYC", "LA", ""],
+            }
         )
         data_with_missing.to_csv(temp_dir / "missing_data.csv", index=False)
 

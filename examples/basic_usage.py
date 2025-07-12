@@ -41,7 +41,11 @@ def create_sample_data():
         {
             "customer_id": [1, 2, 3],
             "name": ["Alice Johnson", "Bob Smith", "Carol Williams"],
-            "email": ["alice@example.com", "bob@example.com", "carol@example.com"],
+            "email": [
+                "alice@example.com",
+                "bob@example.com",
+                "carol@example.com",
+            ],
             "city": ["New York", "Los Angeles", "Chicago"],
         }
     )
@@ -98,13 +102,13 @@ def main():
         print("\n--- Sales by category ---")
         result = execute_sql_query(
             """
-            SELECT 
+            SELECT
                 category,
                 COUNT(*) as num_sales,
                 SUM(quantity) as total_quantity,
                 AVG(price) as avg_price,
                 SUM(quantity * price) as total_revenue
-            FROM sales 
+            FROM sales
             GROUP BY category
             ORDER BY total_revenue DESC
         """
@@ -115,7 +119,7 @@ def main():
         print("\n--- Sales with customer names ---")
         result = execute_sql_query(
             """
-            SELECT 
+            SELECT
                 s.date,
                 s.product,
                 s.quantity,
@@ -144,7 +148,7 @@ def main():
         print("\n8. Advanced analysis...")
         result = execute_sql_query(
             """
-            SELECT 
+            SELECT
                 c.city,
                 COUNT(DISTINCT s.product) as unique_products,
                 SUM(s.quantity * s.price) as total_spent

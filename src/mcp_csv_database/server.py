@@ -49,7 +49,13 @@ def get_database_schema() -> str:
 
             schema_info.append("Columns:")
             for col in columns:
-                col_name, col_type, not_null, default, pk = col[1], col[2], col[3], col[4], col[5]
+                col_name, col_type, not_null, default, pk = (
+                    col[1],
+                    col[2],
+                    col[3],
+                    col[4],
+                    col[5],
+                )
                 pk_indicator = " (PRIMARY KEY)" if pk else ""
                 null_indicator = " NOT NULL" if not_null else ""
                 default_indicator = f" DEFAULT {default}" if default else ""
@@ -137,7 +143,9 @@ def load_csv_folder(folder_path: str, table_prefix: str = "") -> str:
         for csv_file in csv_files:
             try:
                 # Generate table name
-                table_name = table_prefix + csv_file.stem.replace("-", "_").replace(" ", "_")
+                table_name = table_prefix + csv_file.stem.replace(
+                    "-", "_"
+                ).replace(" ", "_")
 
                 # Load CSV into pandas DataFrame - try different separators
                 df = None
@@ -145,7 +153,8 @@ def load_csv_folder(folder_path: str, table_prefix: str = "") -> str:
                 for sep in separators:
                     try:
                         df = pd.read_csv(csv_file, sep=sep, encoding="utf-8")
-                        # Check if we got meaningful columns (more than 1 column usually indicates correct separator)
+                        # Check if we got meaningful columns
+                        # (more than 1 column usually indicates correct separator)
                         if len(df.columns) > 1:
                             break
                     except Exception:
@@ -156,7 +165,12 @@ def load_csv_folder(folder_path: str, table_prefix: str = "") -> str:
                     df = pd.read_csv(csv_file)
 
                 # Load DataFrame into SQLite
-                df.to_sql(table_name, _db_connection, index=False, if_exists="replace")
+                df.to_sql(
+                    table_name,
+                    _db_connection,
+                    index=False,
+                    if_exists="replace",
+                )
 
                 _loaded_tables[table_name] = str(csv_file)
                 results.append(
@@ -203,7 +217,9 @@ def execute_sql_query(query: str, limit: int = 100) -> str:
         if query_upper.startswith("SELECT"):
             # For SELECT queries, return data
             column_names = (
-                [description[0] for description in cursor.description] if cursor.description else []
+                [description[0] for description in cursor.description]
+                if cursor.description
+                else []
             )
             rows = cursor.fetchall()
 
@@ -241,7 +257,9 @@ def execute_sql_query(query: str, limit: int = 100) -> str:
             rows_affected = cursor.rowcount
 
             # Determine query type
-            query_type = query_upper.split()[0] if query_upper.split() else "UNKNOWN"
+            query_type = (
+                query_upper.split()[0] if query_upper.split() else "UNKNOWN"
+            )
 
             output = {
                 "query": query,
@@ -276,7 +294,8 @@ def get_table_info(table_name: str) -> str:
 
         # Check if table exists
         cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table_name,)
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            (table_name,),
         )
         if not cursor.fetchone():
             available_tables = list(_loaded_tables.keys())
@@ -319,7 +338,9 @@ def get_table_info(table_name: str) -> str:
 
 
 @mcp.tool()
-def create_index(table_name: str, column_name: str, index_name: str = "") -> str:
+def create_index(
+    table_name: str, column_name: str, index_name: str = ""
+) -> str:
     """
     Create an index on a table column for better query performance.
 
@@ -339,7 +360,9 @@ def create_index(table_name: str, column_name: str, index_name: str = "") -> str
             index_name = f"idx_{table_name}_{column_name}"
 
         # Sanitize column name if it contains spaces or special characters
-        if " " in column_name or any(char in column_name for char in ["-", ".", "(", ")"]):
+        if " " in column_name or any(
+            char in column_name for char in ["-", ".", "(", ")"]
+        ):
             column_ref = f'"{column_name}"'
         else:
             column_ref = column_name
@@ -385,7 +408,9 @@ def backup_database(backup_path: str) -> str:
 
 
 @mcp.tool()
-def export_table_to_csv(table_name: str, output_path: str, include_header: bool = True) -> str:
+def export_table_to_csv(
+    table_name: str, output_path: str, include_header: bool = True
+) -> str:
     """
     Export a table to a CSV file.
 
@@ -405,7 +430,13 @@ def export_table_to_csv(table_name: str, output_path: str, include_header: bool 
         df = pd.read_sql_query(f'SELECT * FROM "{table_name}"', _db_connection)
 
         # Export to CSV
-        df.to_csv(output_path, index=False, header=include_header, sep=";", encoding="utf-8")
+        df.to_csv(
+            output_path,
+            index=False,
+            header=include_header,
+            sep=";",
+            encoding="utf-8",
+        )
 
         return f"Table '{table_name}' exported successfully to: {output_path} ({len(df)} rows)"
 
@@ -519,25 +550,27 @@ def get_column_stats(table_name: str, column_name: str) -> str:
 
         stats.append(f"Total rows: {total_rows}")
         stats.append(f"Non-null values: {non_null_count}")
-        stats.append(f"Null values: {null_count} ({null_count/total_rows*100:.1f}%)")
+        stats.append(
+            f"Null values: {null_count} ({null_count/total_rows*100:.1f}%)"
+        )
         stats.append(f"Unique values: {unique_count}")
 
         # Try numeric statistics
         try:
             cursor.execute(
                 f"""
-                SELECT 
+                SELECT
                     MIN(CAST("{column_name}" AS REAL)),
                     MAX(CAST("{column_name}" AS REAL)),
                     AVG(CAST("{column_name}" AS REAL))
-                FROM "{table_name}" 
-                WHERE "{column_name}" IS NOT NULL 
+                FROM "{table_name}"
+                WHERE "{column_name}" IS NOT NULL
                 AND "{column_name}" != ''
             """
             )
             min_val, max_val, avg_val = cursor.fetchone()
             if min_val is not None:
-                stats.append(f"\nNumeric Statistics:")
+                stats.append("\nNumeric Statistics:")
                 stats.append(f"Min: {min_val}")
                 stats.append(f"Max: {max_val}")
                 stats.append(f"Average: {avg_val:.2f}")
@@ -547,18 +580,18 @@ def get_column_stats(table_name: str, column_name: str) -> str:
         # Most common values
         cursor.execute(
             f"""
-            SELECT "{column_name}", COUNT(*) as freq 
-            FROM "{table_name}" 
-            WHERE "{column_name}" IS NOT NULL 
-            GROUP BY "{column_name}" 
-            ORDER BY freq DESC 
+            SELECT "{column_name}", COUNT(*) as freq
+            FROM "{table_name}"
+            WHERE "{column_name}" IS NOT NULL
+            GROUP BY "{column_name}"
+            ORDER BY freq DESC
             LIMIT 5
         """
         )
         common_values = cursor.fetchall()
 
         if common_values:
-            stats.append(f"\nMost Common Values:")
+            stats.append("\nMost Common Values:")
             for value, freq in common_values:
                 percentage = freq / total_rows * 100
                 stats.append(f"  '{value}': {freq} ({percentage:.1f}%)")
@@ -596,7 +629,9 @@ def find_duplicates(table_name: str, columns: str = "all") -> str:
         else:
             check_columns = [col.strip() for col in columns.split(",")]
             # Validate columns exist
-            invalid_cols = [col for col in check_columns if col not in all_columns]
+            invalid_cols = [
+                col for col in check_columns if col not in all_columns
+            ]
             if invalid_cols:
                 return f"Invalid columns: {invalid_cols}. Available columns: {all_columns}"
 
@@ -639,16 +674,24 @@ def find_duplicates(table_name: str, columns: str = "all") -> str:
 
         # Show top duplicate groups
         result.append("Top duplicate groups:")
-        column_names = [desc[0] for desc in cursor.description[:-1]]  # Exclude count column
+        column_names = [
+            desc[0] for desc in cursor.description[:-1]
+        ]  # Exclude count column
 
         for i, row in enumerate(duplicates[:10]):  # Show top 10
             values = row[:-1]  # Exclude count
             count = row[-1]
-            value_pairs = [f"{col}='{val}'" for col, val in zip(column_names, values)]
-            result.append(f"  {i+1}. {', '.join(value_pairs)} (appears {count} times)")
+            value_pairs = [
+                f"{col}='{val}'" for col, val in zip(column_names, values)
+            ]
+            result.append(
+                f"  {i+1}. {', '.join(value_pairs)} (appears {count} times)"
+            )
 
         if len(duplicates) > 10:
-            result.append(f"  ... and {len(duplicates) - 10} more duplicate groups")
+            result.append(
+                f"  ... and {len(duplicates) - 10} more duplicate groups"
+            )
 
         return "\n".join(result)
 
@@ -691,7 +734,7 @@ def analyze_missing_data(table_name: str) -> str:
             # Count null and empty values
             cursor.execute(
                 f"""
-                SELECT 
+                SELECT
                     COUNT(*) - COUNT("{column}") as null_count,
                     SUM(CASE WHEN "{column}" = '' THEN 1 ELSE 0 END) as empty_count
                 FROM "{table_name}"
@@ -699,10 +742,18 @@ def analyze_missing_data(table_name: str) -> str:
             )
             null_count, empty_count = cursor.fetchone()
             missing_count = null_count + empty_count
-            missing_percentage = (missing_count / total_rows) * 100 if total_rows > 0 else 0
+            missing_percentage = (
+                (missing_count / total_rows) * 100 if total_rows > 0 else 0
+            )
 
             missing_info.append(
-                (column, missing_count, missing_percentage, null_count, empty_count)
+                (
+                    column,
+                    missing_count,
+                    missing_percentage,
+                    null_count,
+                    empty_count,
+                )
             )
 
         # Sort by missing percentage (highest first)
@@ -712,7 +763,13 @@ def analyze_missing_data(table_name: str) -> str:
         result.append("Column | Missing | Percentage | Nulls | Empty")
         result.append("-" * 50)
 
-        for column, missing_count, missing_pct, null_count, empty_count in missing_info:
+        for (
+            column,
+            missing_count,
+            missing_pct,
+            null_count,
+            empty_count,
+        ) in missing_info:
             result.append(
                 f"{column:<15} | {missing_count:>7} | {missing_pct:>8.1f}% | {null_count:>5} | {empty_count:>5}"
             )
@@ -728,7 +785,9 @@ def analyze_missing_data(table_name: str) -> str:
         no_missing = [info for info in missing_info if info[1] == 0]
         if no_missing:
             result.append("")
-            result.append(f"✅ Complete columns (no missing data): {len(no_missing)}")
+            result.append(
+                f"✅ Complete columns (no missing data): {len(no_missing)}"
+            )
             if len(no_missing) <= 10:
                 complete_cols = [info[0] for info in no_missing]
                 result.append(f"  {', '.join(complete_cols)}")
@@ -766,7 +825,9 @@ def get_data_summary(table_name: str) -> str:
 
         result = []
         result.append(f"=== Data Summary: {table_name} ===")
-        result.append(f"Dimensions: {total_rows:,} rows × {total_columns} columns")
+        result.append(
+            f"Dimensions: {total_rows:,} rows × {total_columns} columns"
+        )
         result.append("")
 
         # Analyze each column quickly
@@ -780,9 +841,9 @@ def get_data_summary(table_name: str) -> str:
             try:
                 cursor.execute(
                     f"""
-                    SELECT COUNT(*) 
-                    FROM "{table_name}" 
-                    WHERE "{column}" IS NOT NULL 
+                    SELECT COUNT(*)
+                    FROM "{table_name}"
+                    WHERE "{column}" IS NOT NULL
                     AND "{column}" != ''
                     AND CAST("{column}" AS REAL) = CAST("{column}" AS REAL)
                     LIMIT 1
@@ -792,17 +853,19 @@ def get_data_summary(table_name: str) -> str:
                     # Get some numeric stats
                     cursor.execute(
                         f"""
-                        SELECT 
+                        SELECT
                             MIN(CAST("{column}" AS REAL)),
                             MAX(CAST("{column}" AS REAL)),
                             COUNT(DISTINCT "{column}")
-                        FROM "{table_name}" 
-                        WHERE "{column}" IS NOT NULL 
+                        FROM "{table_name}"
+                        WHERE "{column}" IS NOT NULL
                         AND "{column}" != ''
                     """
                     )
                     min_val, max_val, unique_count = cursor.fetchone()
-                    numeric_cols.append((column, min_val, max_val, unique_count))
+                    numeric_cols.append(
+                        (column, min_val, max_val, unique_count)
+                    )
                 else:
                     raise ValueError("Not numeric")
             except Exception:
@@ -810,8 +873,8 @@ def get_data_summary(table_name: str) -> str:
                 cursor.execute(
                     f"""
                     SELECT COUNT(DISTINCT "{column}")
-                    FROM "{table_name}" 
-                    WHERE "{column}" IS NOT NULL 
+                    FROM "{table_name}"
+                    WHERE "{column}" IS NOT NULL
                     AND "{column}" != ''
                 """
                 )
@@ -832,18 +895,25 @@ def get_data_summary(table_name: str) -> str:
             result.append("Text Columns:")
             for column, unique_count in text_cols:
                 if unique_count == total_rows:
-                    result.append(f"  • {column}: All unique values (likely ID/identifier)")
+                    result.append(
+                        f"  • {column}: All unique values (likely ID/identifier)"
+                    )
                 elif unique_count < 20:
-                    result.append(f"  • {column}: {unique_count} categories (likely categorical)")
+                    result.append(
+                        f"  • {column}: {unique_count} categories (likely categorical)"
+                    )
                 else:
-                    result.append(f"  • {column}: {unique_count:,} unique values")
+                    result.append(
+                        f"  • {column}: {unique_count:,} unique values"
+                    )
 
         # Quick data quality check
         result.append("")
         cursor.execute(
             f"""
-            SELECT 
-                SUM(CASE WHEN {' OR '.join([f'"{col[1]}" IS NULL OR "{col[1]}" = ""' for col in columns_info])} THEN 1 ELSE 0 END) as rows_with_missing
+            SELECT
+                SUM(CASE WHEN {' OR '.join([f'"{col[1]}" IS NULL OR "{col[1]}" = ""' for col in columns_info])}
+                    THEN 1 ELSE 0 END) as rows_with_missing
             FROM "{table_name}"
         """
         )
@@ -851,7 +921,9 @@ def get_data_summary(table_name: str) -> str:
         complete_rows = total_rows - rows_with_missing
 
         result.append("Data Quality:")
-        result.append(f"  • Complete rows: {complete_rows:,} ({complete_rows/total_rows*100:.1f}%)")
+        result.append(
+            f"  • Complete rows: {complete_rows:,} ({complete_rows/total_rows*100:.1f}%)"
+        )
         result.append(
             f"  • Rows with missing data: {rows_with_missing:,} ({rows_with_missing/total_rows*100:.1f}%)"
         )
@@ -863,7 +935,9 @@ def get_data_summary(table_name: str) -> str:
 
 
 @mcp.prompt()
-def analyze_data_prompt(table_name: str, analysis_type: str = "summary") -> str:
+def analyze_data_prompt(
+    table_name: str, analysis_type: str = "summary"
+) -> str:
     """
     Generate a prompt for analyzing data in a specific table.
 
@@ -924,7 +998,7 @@ Examples:
   mcp-csv-database --csv-folder ./data --transport sse --port 8080
 
 Available analysis tools once started:
-  • get_data_summary(table_name) - Comprehensive data overview  
+  • get_data_summary(table_name) - Comprehensive data overview
   • get_column_stats(table_name, column_name) - Detailed column analysis
   • analyze_missing_data(table_name) - Data quality assessment
   • find_duplicates(table_name) - Duplicate detection
@@ -936,7 +1010,11 @@ Available analysis tools once started:
         nargs="?",
         help="Path to folder containing CSV files to analyze (recommended)",
     )
-    parser.add_argument("--csv-folder", type=str, help="Alternative way to specify CSV folder path")
+    parser.add_argument(
+        "--csv-folder",
+        type=str,
+        help="Alternative way to specify CSV folder path",
+    )
     parser.add_argument(
         "--table-prefix",
         type=str,
@@ -950,7 +1028,10 @@ Available analysis tools once started:
         help="Transport type: stdio (local), sse or streamable-http (remote)",
     )
     parser.add_argument(
-        "--port", type=int, default=3000, help="Port for HTTP transport (default: 3000)"
+        "--port",
+        type=int,
+        default=3000,
+        help="Port for HTTP transport (default: 3000)",
     )
 
     args = parser.parse_args()
@@ -966,7 +1047,9 @@ Available analysis tools once started:
         result = load_csv_folder(csv_folder_path, args.table_prefix)
         print(result)
         print()
-        print("✅ Ready for data analysis! Your CSV files are loaded and ready.")
+        print(
+            "✅ Ready for data analysis! Your CSV files are loaded and ready."
+        )
     else:
         print("💡 Tip: For instant analysis, restart with a CSV folder:")
         print("   mcp-csv-database /path/to/your/csv/files")
