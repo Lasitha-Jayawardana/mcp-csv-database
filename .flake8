@@ -1,0 +1,23 @@
+[flake8]
+max-line-length = 120
+extend-ignore = E203, W503, E501, F824
+# E203: whitespace before ':' (black compatibility)
+# W503: line break before binary operator (black compatibility)  
+# E501: line too long (handled by black)
+# F824: unused variable (false positive for globals in cleanup)
+# E203: whitespace before ':' (black compatibility)
+# W503: line break before binary operator (black compatibility)
+exclude = 
+    .git,
+    __pycache__,
+    docs/source/conf.py,
+    old,
+    build,
+    dist,
+    .eggs,
+    *.egg-info,
+    htmlcov,
+    .tox,
+    .mypy_cache,
+    .pytest_cache,
+    venv

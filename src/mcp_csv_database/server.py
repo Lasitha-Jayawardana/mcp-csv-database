@@ -25,7 +25,9 @@ _db_path: Optional[str] = None
 
 @mcp.tool()
 def get_database_schema() -> str:
-    """Get the current database schema showing all loaded tables and their structure"""
+    """Get the current database schema showing all loaded tables
+    and their structure
+    """
     if not _db_connection:
         return "No database loaded. Use load_csv_folder tool first."
 
@@ -152,7 +154,8 @@ def load_csv_folder(folder_path: str, table_prefix: str = "") -> str:
                     try:
                         df = pd.read_csv(csv_file, sep=sep, encoding="utf-8")
                         # Check if we got meaningful columns
-                        # (more than 1 column usually indicates correct separator)
+                        # (more than 1 column usually indicates
+                        # correct separator)
                         if len(df.columns) > 1:
                             break
                     except Exception:
