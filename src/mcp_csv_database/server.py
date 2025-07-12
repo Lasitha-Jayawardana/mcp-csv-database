@@ -884,7 +884,9 @@ def get_data_summary(table_name: str) -> str:
         complete_rows = total_rows - rows_with_missing
 
         result.append("Data Quality:")
-        result.append(f"  • Complete rows: {complete_rows:,} ({complete_rows / total_rows * 100:.1f}%)")
+        result.append(
+            f"  • Complete rows: {complete_rows:,} ({complete_rows / total_rows * 100:.1f}%)"
+        )
         result.append(
             f"  • Rows with missing data: {rows_with_missing:,} ({rows_with_missing / total_rows * 100:.1f}%)"
         )
