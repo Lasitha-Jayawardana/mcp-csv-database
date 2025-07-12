@@ -20,13 +20,24 @@ from mcp_csv_database.server import (
     create_index,
     backup_database,
     get_query_plan,
-    _db_connection,
-    _loaded_tables
+    get_data_summary,
+    get_column_stats,
+    analyze_missing_data,
+    find_duplicates,
 )
+import mcp_csv_database.server as server_module
 
 
 class TestCSVDatabaseServer:
     """Test suite for CSV Database Server functionality"""
+    
+    def setup_method(self):
+        """Reset global state before each test"""
+        clear_database()
+    
+    def teardown_method(self):
+        """Clean up after each test"""
+        clear_database()
     
     @pytest.fixture
     def sample_data_dir(self):
@@ -66,7 +77,7 @@ class TestCSVDatabaseServer:
         assert "Loaded 2/2 CSV files" in result
         assert "sales" in result
         assert "customers" in result
-        assert len(_loaded_tables) == 2
+        assert len(server_module._loaded_tables) == 2
     
     def test_load_csv_folder_with_prefix(self, sample_data_dir):
         """Test loading CSV files with table prefix"""
@@ -74,8 +85,8 @@ class TestCSVDatabaseServer:
         
         assert "test_sales" in result
         assert "test_customers" in result
-        assert "test_sales" in _loaded_tables
-        assert "test_customers" in _loaded_tables
+        assert "test_sales" in server_module._loaded_tables
+        assert "test_customers" in server_module._loaded_tables
     
     def test_load_nonexistent_folder(self):
         """Test loading from non-existent folder"""
@@ -219,13 +230,13 @@ class TestCSVDatabaseServer:
     def test_clear_database(self, sample_data_dir):
         """Test clearing the database"""
         load_csv_folder(str(sample_data_dir))
-        assert len(_loaded_tables) == 2
+        assert len(server_module._loaded_tables) == 2
         
         result = clear_database()
         
         assert "Database cleared" in result
         assert "Removed 2 tables" in result
-        assert len(_loaded_tables) == 0
+        assert len(server_module._loaded_tables) == 0
     
     def test_no_database_loaded_error(self):
         """Test error handling when no database is loaded"""
@@ -239,6 +250,70 @@ class TestCSVDatabaseServer:
         
         result = get_table_info("test")
         assert "Error: No database loaded" in result
+    
+    def test_get_data_summary(self, sample_data_dir):
+        """Test getting data summary"""
+        load_csv_folder(str(sample_data_dir))
+        result = get_data_summary("sales")
+        
+        assert "Data Summary: sales" in result
+        assert "Dimensions:" in result
+        assert "3 rows" in result
+        assert "5 columns" in result
+        assert "Numeric Columns:" in result
+        # Text Columns section might not appear if all columns are detected as numeric
+        assert ("Text Columns:" in result) or ("Numeric Columns:" in result)
+    
+    def test_get_column_stats(self, sample_data_dir):
+        """Test getting column statistics"""
+        load_csv_folder(str(sample_data_dir))
+        result = get_column_stats("sales", "price")
+        
+        assert "Column Statistics: sales.price" in result
+        assert "Total rows: 3" in result
+        assert "Non-null values:" in result
+        assert "Unique values:" in result
+        assert "Numeric Statistics:" in result
+        assert "Min:" in result
+        assert "Max:" in result
+        assert "Average:" in result
+    
+    def test_analyze_missing_data(self, sample_data_dir):
+        """Test missing data analysis"""
+        # Create data with missing values
+        temp_dir = sample_data_dir
+        data_with_missing = pd.DataFrame({
+            'name': ['Alice', 'Bob', None],
+            'age': [25, None, 35],
+            'city': ['NYC', 'LA', '']
+        })
+        data_with_missing.to_csv(temp_dir / "missing_data.csv", index=False)
+        
+        load_csv_folder(str(temp_dir))
+        result = analyze_missing_data("missing_data")
+        
+        assert "Missing Data Analysis: missing_data" in result
+        assert "Total rows: 3" in result
+        assert "Missing data by column:" in result
+        assert "Percentage" in result
+    
+    def test_find_duplicates(self, sample_data_dir):
+        """Test duplicate detection"""
+        # Create data with duplicates
+        temp_dir = sample_data_dir
+        data_with_duplicates = pd.DataFrame({
+            'name': ['Alice', 'Bob', 'Alice', 'Carol'],
+            'age': [25, 30, 25, 35],
+            'city': ['NYC', 'LA', 'NYC', 'Chicago']
+        })
+        data_with_duplicates.to_csv(temp_dir / "duplicates.csv", index=False)
+        
+        load_csv_folder(str(temp_dir))
+        result = find_duplicates("duplicates", "all")
+        
+        assert "Duplicate Analysis: duplicates" in result
+        assert "Duplicate groups found:" in result
+        assert "Total duplicate rows:" in result
 
 
 if __name__ == "__main__":

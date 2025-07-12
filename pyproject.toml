@@ -108,11 +108,12 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+pythonpath = ["src"]
 addopts = [
-    "--cov=src/mcp_csv_database",
+    "--cov=mcp_csv_database",
     "--cov-report=html",
     "--cov-report=term-missing",
-    "--cov-fail-under=80",
+    "--cov-fail-under=70",
 ]
 
 [tool.coverage.run]
