@@ -234,9 +234,7 @@ class TestCSVDatabaseServer:
     def test_get_query_plan(self, sample_data_dir):
         """Test getting query execution plan"""
         load_csv_folder(str(sample_data_dir))
-        result = get_query_plan(
-            "SELECT * FROM sales WHERE category = 'Electronics'"
-        )
+        result = get_query_plan("SELECT * FROM sales WHERE category = 'Electronics'")
 
         assert "Query Execution Plan" in result
         assert "Step" in result
