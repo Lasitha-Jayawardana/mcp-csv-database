@@ -387,8 +387,6 @@ def backup_database(backup_path: str) -> str:
         return "Error: No database loaded. Use load_csv_folder tool first."
 
     try:
-        backup_path = Path(backup_path)
-
         # Create backup using SQLite backup
         backup_conn = sqlite3.connect(backup_path)
         _db_connection.backup(backup_conn)
@@ -541,7 +539,7 @@ def get_column_stats(table_name: str, column_name: str) -> str:
 
         stats.append(f"Total rows: {total_rows}")
         stats.append(f"Non-null values: {non_null_count}")
-        stats.append(f"Null values: {null_count} ({null_count/total_rows*100:.1f}%)")
+        stats.append(f"Null values: {null_count} ({null_count / total_rows * 100:.1f}%)")
         stats.append(f"Unique values: {unique_count}")
 
         # Try numeric statistics
@@ -667,7 +665,7 @@ def find_duplicates(table_name: str, columns: str = "all") -> str:
             values = row[:-1]  # Exclude count
             count = row[-1]
             value_pairs = [f"{col}='{val}'" for col, val in zip(column_names, values)]
-            result.append(f"  {i+1}. {', '.join(value_pairs)} (appears {count} times)")
+            result.append(f"  {i + 1}. {', '.join(value_pairs)} (appears {count} times)")
 
         if len(duplicates) > 10:
             result.append(f"  ... and {len(duplicates) - 10} more duplicate groups")
@@ -886,9 +884,9 @@ def get_data_summary(table_name: str) -> str:
         complete_rows = total_rows - rows_with_missing
 
         result.append("Data Quality:")
-        result.append(f"  • Complete rows: {complete_rows:,} ({complete_rows/total_rows*100:.1f}%)")
+        result.append(f"  • Complete rows: {complete_rows:,} ({complete_rows / total_rows * 100:.1f}%)")
         result.append(
-            f"  • Rows with missing data: {rows_with_missing:,} ({rows_with_missing/total_rows*100:.1f}%)"
+            f"  • Rows with missing data: {rows_with_missing:,} ({rows_with_missing / total_rows * 100:.1f}%)"
         )
 
         return "\n".join(result)
@@ -922,7 +920,7 @@ Use the execute_sql_query tool to explore the data and provide your analysis."""
 
 
 # Cleanup function to be called on server shutdown
-def cleanup():
+def cleanup() -> None:
     """Cleanup function to close database connection and remove temporary files"""
     global _db_connection, _db_path
 
@@ -936,7 +934,7 @@ def cleanup():
             pass  # Ignore errors during cleanup
 
 
-def main():
+def main() -> None:
     """Main entry point for the MCP server"""
     import argparse
     import atexit
@@ -1031,9 +1029,9 @@ Available analysis tools once started:
     if args.transport == "stdio":
         mcp.run()
     elif args.transport == "sse":
-        mcp.run(transport="sse", port=args.port)
+        mcp.run(transport="sse")
     elif args.transport == "streamable-http":
-        mcp.run(transport="streamable-http", port=args.port)
+        mcp.run(transport="streamable-http")
 
 
 # Main execution
