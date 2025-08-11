@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 import pandas as pd
-from mcp.server.fastmcp import FastMCP, Context
+from mcp.server.fastmcp import Context, FastMCP
 
 # Initialize the MCP server
 mcp = FastMCP("CSV Database Server")
@@ -27,16 +27,16 @@ _db_path: Optional[str] = None
 def get_database_schema(ctx: Context | None = None) -> str:
     """Get the current database schema showing all loaded tables
     and their structure
-    
+
     Args:
         ctx: Optional context object providing access to request ID
     """
-    tool_call_id = getattr(ctx, 'request_id', None) if ctx else None
-    
+    tool_call_id = getattr(ctx, "request_id", None) if ctx else None
+
     if not _db_connection:
         error_output = {
             "tool_call_id": tool_call_id,
-            "error": "No database loaded. Use load_csv_folder tool first."
+            "error": "No database loaded. Use load_csv_folder tool first.",
         }
         return json.dumps(error_output, indent=2, default=str)
 
@@ -50,7 +50,7 @@ def get_database_schema(ctx: Context | None = None) -> str:
         if not tables:
             output = {
                 "tool_call_id": tool_call_id,
-                "message": "Database is empty. No tables loaded."
+                "message": "Database is empty. No tables loaded.",
             }
             return json.dumps(output, indent=2, default=str)
 
@@ -93,44 +93,32 @@ def get_database_schema(ctx: Context | None = None) -> str:
                     row_dict = dict(zip(column_names, row))
                     schema_info.append(f"  {row_dict}")
 
-        output = {
-            "tool_call_id": tool_call_id,
-            "schema": "\n".join(schema_info)
-        }
+        output = {"tool_call_id": tool_call_id, "schema": "\n".join(schema_info)}
         return json.dumps(output, indent=2, default=str)
 
     except Exception as e:
-        error_output = {
-            "tool_call_id": tool_call_id,
-            "error": f"Error retrieving schema: {str(e)}"
-        }
+        error_output = {"tool_call_id": tool_call_id, "error": f"Error retrieving schema: {str(e)}"}
         return json.dumps(error_output, indent=2, default=str)
 
 
 @mcp.tool()
 def list_loaded_tables(ctx: Context | None = None) -> str:
     """List all currently loaded tables with their source CSV files
-    
+
     Args:
         ctx: Optional context object providing access to request ID
     """
-    tool_call_id = getattr(ctx, 'request_id', None) if ctx else None
-    
+    tool_call_id = getattr(ctx, "request_id", None) if ctx else None
+
     if not _loaded_tables:
-        output = {
-            "tool_call_id": tool_call_id,
-            "message": "No tables loaded."
-        }
+        output = {"tool_call_id": tool_call_id, "message": "No tables loaded."}
         return json.dumps(output, indent=2, default=str)
 
     table_list = []
     for table_name, csv_path in _loaded_tables.items():
         table_list.append(f"- {table_name} (from {csv_path})")
 
-    output = {
-        "tool_call_id": tool_call_id,
-        "tables": "Loaded tables:\n" + "\n".join(table_list)
-    }
+    output = {"tool_call_id": tool_call_id, "tables": "Loaded tables:\n" + "\n".join(table_list)}
     return json.dumps(output, indent=2, default=str)
 
 
@@ -147,7 +135,7 @@ def load_csv_folder(folder_path: str, table_prefix: str = "", ctx: Context | Non
     Returns:
         Status message with details of loaded files
     """
-    tool_call_id = getattr(ctx, 'request_id', None) if ctx else None
+    tool_call_id = getattr(ctx, "request_id", None) if ctx else None
     global _db_connection, _loaded_tables, _db_path
 
     try:
@@ -156,14 +144,14 @@ def load_csv_folder(folder_path: str, table_prefix: str = "", ctx: Context | Non
         if not folder.exists():
             error_output = {
                 "tool_call_id": tool_call_id,
-                "error": f"Folder '{folder_path}' does not exist."
+                "error": f"Folder '{folder_path}' does not exist.",
             }
             return json.dumps(error_output, indent=2, default=str)
 
         if not folder.is_dir():
             error_output = {
                 "tool_call_id": tool_call_id,
-                "error": f"'{folder_path}' is not a directory."
+                "error": f"'{folder_path}' is not a directory.",
             }
             return json.dumps(error_output, indent=2, default=str)
 
@@ -172,7 +160,7 @@ def load_csv_folder(folder_path: str, table_prefix: str = "", ctx: Context | Non
         if not csv_files:
             error_output = {
                 "tool_call_id": tool_call_id,
-                "error": f"No CSV files found in '{folder_path}'."
+                "error": f"No CSV files found in '{folder_path}'.",
             }
             return json.dumps(error_output, indent=2, default=str)
 
@@ -240,14 +228,14 @@ def load_csv_folder(folder_path: str, table_prefix: str = "", ctx: Context | Non
             "summary": summary,
             "successful_loads": successful_loads,
             "total_files": len(csv_files),
-            "database_path": _db_path
+            "database_path": _db_path,
         }
         return json.dumps(output, indent=2, default=str)
 
     except Exception as e:
         error_output = {
             "tool_call_id": tool_call_id,
-            "error": f"Error loading CSV folder: {str(e)}"
+            "error": f"Error loading CSV folder: {str(e)}",
         }
         return json.dumps(error_output, indent=2, default=str)
 
@@ -276,7 +264,7 @@ def execute_sql_query(query: str, limit: int = 100, ctx: Context | None = None) 
         cursor.execute(query)
 
         # Get tool call ID if available
-        tool_call_id = getattr(ctx, 'request_id', None) if ctx else None
+        tool_call_id = getattr(ctx, "request_id", None) if ctx else None
 
         # Handle different types of queries
         if query_upper.startswith("SELECT"):
@@ -289,7 +277,7 @@ def execute_sql_query(query: str, limit: int = 100, ctx: Context | None = None) 
             if not rows:
                 output = {
                     "tool_call_id": tool_call_id,
-                    "message": "Query executed successfully. No results returned."
+                    "message": "Query executed successfully. No results returned.",
                 }
                 return json.dumps(output, indent=2, default=str)
 
@@ -340,8 +328,8 @@ def execute_sql_query(query: str, limit: int = 100, ctx: Context | None = None) 
 
     except Exception as e:
         error_output = {
-            "tool_call_id": getattr(ctx, 'request_id', None) if ctx else None,
-            "error": f"Error executing query: {str(e)}"
+            "tool_call_id": getattr(ctx, "request_id", None) if ctx else None,
+            "error": f"Error executing query: {str(e)}",
         }
         return json.dumps(error_output, indent=2, default=str)
 
@@ -358,12 +346,12 @@ def get_table_info(table_name: str, ctx: Context | None = None) -> str:
     Returns:
         Detailed table information including schema and sample data
     """
-    tool_call_id = getattr(ctx, 'request_id', None) if ctx else None
-    
+    tool_call_id = getattr(ctx, "request_id", None) if ctx else None
+
     if not _db_connection:
         error_output = {
             "tool_call_id": tool_call_id,
-            "error": "No database loaded. Use load_csv_folder tool first."
+            "error": "No database loaded. Use load_csv_folder tool first.",
         }
         return json.dumps(error_output, indent=2, default=str)
 
@@ -379,7 +367,7 @@ def get_table_info(table_name: str, ctx: Context | None = None) -> str:
             available_tables = list(_loaded_tables.keys())
             error_output = {
                 "tool_call_id": tool_call_id,
-                "error": f"Table '{table_name}' not found. Available tables: {available_tables}"
+                "error": f"Table '{table_name}' not found. Available tables: {available_tables}",
             }
             return json.dumps(error_output, indent=2, default=str)
 
@@ -413,22 +401,21 @@ def get_table_info(table_name: str, ctx: Context | None = None) -> str:
                 row_dict = dict(zip(column_names, row))
                 info.append(f"  Row {i}: {row_dict}")
 
-        output = {
-            "tool_call_id": tool_call_id,
-            "table_info": "\n".join(info)
-        }
+        output = {"tool_call_id": tool_call_id, "table_info": "\n".join(info)}
         return json.dumps(output, indent=2, default=str)
 
     except Exception as e:
         error_output = {
             "tool_call_id": tool_call_id,
-            "error": f"Error getting table info: {str(e)}"
+            "error": f"Error getting table info: {str(e)}",
         }
         return json.dumps(error_output, indent=2, default=str)
 
 
 @mcp.tool()
-def create_index(table_name: str, column_name: str, index_name: str = "", ctx: Context | None = None) -> str:
+def create_index(
+    table_name: str, column_name: str, index_name: str = "", ctx: Context | None = None
+) -> str:
     """
     Create an index on a table column for better query performance.
 
@@ -441,12 +428,12 @@ def create_index(table_name: str, column_name: str, index_name: str = "", ctx: C
     Returns:
         Status message
     """
-    tool_call_id = getattr(ctx, 'request_id', None) if ctx else None
-    
+    tool_call_id = getattr(ctx, "request_id", None) if ctx else None
+
     if not _db_connection:
         error_output = {
             "tool_call_id": tool_call_id,
-            "error": "No database loaded. Use load_csv_folder tool first."
+            "error": "No database loaded. Use load_csv_folder tool first.",
         }
         return json.dumps(error_output, indent=2, default=str)
 
@@ -471,15 +458,12 @@ def create_index(table_name: str, column_name: str, index_name: str = "", ctx: C
             "message": f"Index '{index_name}' created successfully on {table_name}.{column_name}",
             "index_name": index_name,
             "table_name": table_name,
-            "column_name": column_name
+            "column_name": column_name,
         }
         return json.dumps(output, indent=2, default=str)
 
     except Exception as e:
-        error_output = {
-            "tool_call_id": tool_call_id,
-            "error": f"Error creating index: {str(e)}"
-        }
+        error_output = {"tool_call_id": tool_call_id, "error": f"Error creating index: {str(e)}"}
         return json.dumps(error_output, indent=2, default=str)
 
 
@@ -495,12 +479,12 @@ def backup_database(backup_path: str, ctx: Context | None = None) -> str:
     Returns:
         Status message
     """
-    tool_call_id = getattr(ctx, 'request_id', None) if ctx else None
-    
+    tool_call_id = getattr(ctx, "request_id", None) if ctx else None
+
     if not _db_connection:
         error_output = {
             "tool_call_id": tool_call_id,
-            "error": "No database loaded. Use load_csv_folder tool first."
+            "error": "No database loaded. Use load_csv_folder tool first.",
         }
         return json.dumps(error_output, indent=2, default=str)
 
@@ -513,20 +497,19 @@ def backup_database(backup_path: str, ctx: Context | None = None) -> str:
         output = {
             "tool_call_id": tool_call_id,
             "message": f"Database backed up successfully to: {backup_path}",
-            "backup_path": backup_path
+            "backup_path": backup_path,
         }
         return json.dumps(output, indent=2, default=str)
 
     except Exception as e:
-        error_output = {
-            "tool_call_id": tool_call_id,
-            "error": f"Error creating backup: {str(e)}"
-        }
+        error_output = {"tool_call_id": tool_call_id, "error": f"Error creating backup: {str(e)}"}
         return json.dumps(error_output, indent=2, default=str)
 
 
 @mcp.tool()
-def export_table_to_csv(table_name: str, output_path: str, include_header: bool = True, ctx: Context | None = None) -> str:
+def export_table_to_csv(
+    table_name: str, output_path: str, include_header: bool = True, ctx: Context | None = None
+) -> str:
     """
     Export a table to a CSV file.
 
@@ -539,12 +522,12 @@ def export_table_to_csv(table_name: str, output_path: str, include_header: bool 
     Returns:
         Status message
     """
-    tool_call_id = getattr(ctx, 'request_id', None) if ctx else None
-    
+    tool_call_id = getattr(ctx, "request_id", None) if ctx else None
+
     if not _db_connection:
         error_output = {
             "tool_call_id": tool_call_id,
-            "error": "No database loaded. Use load_csv_folder tool first."
+            "error": "No database loaded. Use load_csv_folder tool first.",
         }
         return json.dumps(error_output, indent=2, default=str)
 
@@ -567,15 +550,12 @@ def export_table_to_csv(table_name: str, output_path: str, include_header: bool 
             "table_name": table_name,
             "output_path": output_path,
             "row_count": len(df),
-            "include_header": include_header
+            "include_header": include_header,
         }
         return json.dumps(output, indent=2, default=str)
 
     except Exception as e:
-        error_output = {
-            "tool_call_id": tool_call_id,
-            "error": f"Error exporting table: {str(e)}"
-        }
+        error_output = {"tool_call_id": tool_call_id, "error": f"Error exporting table: {str(e)}"}
         return json.dumps(error_output, indent=2, default=str)
 
 
@@ -591,12 +571,12 @@ def get_query_plan(query: str, ctx: Context | None = None) -> str:
     Returns:
         Query execution plan
     """
-    tool_call_id = getattr(ctx, 'request_id', None) if ctx else None
-    
+    tool_call_id = getattr(ctx, "request_id", None) if ctx else None
+
     if not _db_connection:
         error_output = {
             "tool_call_id": tool_call_id,
-            "error": "No database loaded. Use load_csv_folder tool first."
+            "error": "No database loaded. Use load_csv_folder tool first.",
         }
         return json.dumps(error_output, indent=2, default=str)
 
@@ -611,7 +591,7 @@ def get_query_plan(query: str, ctx: Context | None = None) -> str:
             output = {
                 "tool_call_id": tool_call_id,
                 "message": "No execution plan available.",
-                "query": query
+                "query": query,
             }
             return json.dumps(output, indent=2, default=str)
 
@@ -622,14 +602,14 @@ def get_query_plan(query: str, ctx: Context | None = None) -> str:
         output = {
             "tool_call_id": tool_call_id,
             "query": query,
-            "execution_plan": "\n".join(plan_info)
+            "execution_plan": "\n".join(plan_info),
         }
         return json.dumps(output, indent=2, default=str)
 
     except Exception as e:
         error_output = {
             "tool_call_id": tool_call_id,
-            "error": f"Error getting query plan: {str(e)}"
+            "error": f"Error getting query plan: {str(e)}",
         }
         return json.dumps(error_output, indent=2, default=str)
 
@@ -638,14 +618,14 @@ def get_query_plan(query: str, ctx: Context | None = None) -> str:
 def clear_database(ctx: Context | None = None) -> str:
     """
     Clear the temporary database and remove all loaded tables.
-    
+
     Args:
         ctx: Optional context object providing access to request ID
 
     Returns:
         Status message
     """
-    tool_call_id = getattr(ctx, 'request_id', None) if ctx else None
+    tool_call_id = getattr(ctx, "request_id", None) if ctx else None
     global _db_connection, _loaded_tables, _db_path
 
     try:
@@ -663,15 +643,12 @@ def clear_database(ctx: Context | None = None) -> str:
         output = {
             "tool_call_id": tool_call_id,
             "message": f"Database cleared. Removed {table_count} tables.",
-            "tables_removed": table_count
+            "tables_removed": table_count,
         }
         return json.dumps(output, indent=2, default=str)
 
     except Exception as e:
-        error_output = {
-            "tool_call_id": tool_call_id,
-            "error": f"Error clearing database: {str(e)}"
-        }
+        error_output = {"tool_call_id": tool_call_id, "error": f"Error clearing database: {str(e)}"}
         return json.dumps(error_output, indent=2, default=str)
 
 
@@ -688,12 +665,12 @@ def get_column_stats(table_name: str, column_name: str, ctx: Context | None = No
     Returns:
         Statistical summary including count, nulls, unique values, and distribution info
     """
-    tool_call_id = getattr(ctx, 'request_id', None) if ctx else None
-    
+    tool_call_id = getattr(ctx, "request_id", None) if ctx else None
+
     if not _db_connection:
         error_output = {
             "tool_call_id": tool_call_id,
-            "error": "No database loaded. Use load_csv_folder tool first."
+            "error": "No database loaded. Use load_csv_folder tool first.",
         }
         return json.dumps(error_output, indent=2, default=str)
 
@@ -706,7 +683,7 @@ def get_column_stats(table_name: str, column_name: str, ctx: Context | None = No
         if column_name not in columns:
             error_output = {
                 "tool_call_id": tool_call_id,
-                "error": f"Column '{column_name}' not found in table '{table_name}'. Available columns: {columns}"
+                "error": f"Column '{column_name}' not found in table '{table_name}'. Available columns: {columns}",
             }
             return json.dumps(error_output, indent=2, default=str)
 
@@ -778,15 +755,12 @@ def get_column_stats(table_name: str, column_name: str, ctx: Context | None = No
             "tool_call_id": tool_call_id,
             "column_stats": "\n".join(stats),
             "table_name": table_name,
-            "column_name": column_name
+            "column_name": column_name,
         }
         return json.dumps(output, indent=2, default=str)
 
     except Exception as e:
-        error_output = {
-            "tool_call_id": tool_call_id,
-            "error": f"Error analyzing column: {str(e)}"
-        }
+        error_output = {"tool_call_id": tool_call_id, "error": f"Error analyzing column: {str(e)}"}
         return json.dumps(error_output, indent=2, default=str)
 
 
@@ -803,12 +777,12 @@ def find_duplicates(table_name: str, columns: str = "all", ctx: Context | None =
     Returns:
         Information about duplicate rows found
     """
-    tool_call_id = getattr(ctx, 'request_id', None) if ctx else None
-    
+    tool_call_id = getattr(ctx, "request_id", None) if ctx else None
+
     if not _db_connection:
         error_output = {
             "tool_call_id": tool_call_id,
-            "error": "No database loaded. Use load_csv_folder tool first."
+            "error": "No database loaded. Use load_csv_folder tool first.",
         }
         return json.dumps(error_output, indent=2, default=str)
 
@@ -828,7 +802,7 @@ def find_duplicates(table_name: str, columns: str = "all", ctx: Context | None =
             if invalid_cols:
                 error_output = {
                     "tool_call_id": tool_call_id,
-                    "error": f"Invalid columns: {invalid_cols}. Available columns: {all_columns}"
+                    "error": f"Invalid columns: {invalid_cols}. Available columns: {all_columns}",
                 }
                 return json.dumps(error_output, indent=2, default=str)
 
@@ -851,7 +825,7 @@ def find_duplicates(table_name: str, columns: str = "all", ctx: Context | None =
                 "tool_call_id": tool_call_id,
                 "message": f"No duplicate rows found in table '{table_name}' for columns: {check_columns}",
                 "table_name": table_name,
-                "columns_checked": check_columns
+                "columns_checked": check_columns,
             }
             return json.dumps(output, indent=2, default=str)
 
@@ -894,14 +868,14 @@ def find_duplicates(table_name: str, columns: str = "all", ctx: Context | None =
             "table_name": table_name,
             "columns_checked": check_columns,
             "duplicate_groups_found": len(duplicates),
-            "total_duplicate_rows": total_duplicate_rows
+            "total_duplicate_rows": total_duplicate_rows,
         }
         return json.dumps(output, indent=2, default=str)
 
     except Exception as e:
         error_output = {
             "tool_call_id": tool_call_id,
-            "error": f"Error finding duplicates: {str(e)}"
+            "error": f"Error finding duplicates: {str(e)}",
         }
         return json.dumps(error_output, indent=2, default=str)
 
@@ -918,12 +892,12 @@ def analyze_missing_data(table_name: str, ctx: Context | None = None) -> str:
     Returns:
         Summary of missing data patterns across all columns
     """
-    tool_call_id = getattr(ctx, 'request_id', None) if ctx else None
-    
+    tool_call_id = getattr(ctx, "request_id", None) if ctx else None
+
     if not _db_connection:
         error_output = {
             "tool_call_id": tool_call_id,
-            "error": "No database loaded. Use load_csv_folder tool first."
+            "error": "No database loaded. Use load_csv_folder tool first.",
         }
         return json.dumps(error_output, indent=2, default=str)
 
@@ -1006,14 +980,14 @@ def analyze_missing_data(table_name: str, ctx: Context | None = None) -> str:
             "tool_call_id": tool_call_id,
             "missing_data_analysis": "\n".join(result),
             "table_name": table_name,
-            "total_rows": total_rows
+            "total_rows": total_rows,
         }
         return json.dumps(output, indent=2, default=str)
 
     except Exception as e:
         error_output = {
             "tool_call_id": tool_call_id,
-            "error": f"Error analyzing missing data: {str(e)}"
+            "error": f"Error analyzing missing data: {str(e)}",
         }
         return json.dumps(error_output, indent=2, default=str)
 
@@ -1030,12 +1004,12 @@ def get_data_summary(table_name: str, ctx: Context | None = None) -> str:
     Returns:
         Quick overview with key insights about the data
     """
-    tool_call_id = getattr(ctx, 'request_id', None) if ctx else None
-    
+    tool_call_id = getattr(ctx, "request_id", None) if ctx else None
+
     if not _db_connection:
         error_output = {
             "tool_call_id": tool_call_id,
-            "error": "No database loaded. Use load_csv_folder tool first."
+            "error": "No database loaded. Use load_csv_folder tool first.",
         }
         return json.dumps(error_output, indent=2, default=str)
 
@@ -1150,14 +1124,14 @@ def get_data_summary(table_name: str, ctx: Context | None = None) -> str:
             "data_summary": "\n".join(result),
             "table_name": table_name,
             "total_rows": total_rows,
-            "total_columns": total_columns
+            "total_columns": total_columns,
         }
         return json.dumps(output, indent=2, default=str)
 
     except Exception as e:
         error_output = {
             "tool_call_id": tool_call_id,
-            "error": f"Error generating data summary: {str(e)}"
+            "error": f"Error generating data summary: {str(e)}",
         }
         return json.dumps(error_output, indent=2, default=str)
 
