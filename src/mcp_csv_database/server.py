@@ -253,8 +253,14 @@ def execute_sql_query(query: str, limit: int = 100, ctx: Context | None = None) 
     Returns:
         Query results formatted as JSON or execution status
     """
+    tool_call_id = getattr(ctx, "request_id", None) if ctx else None
+    
     if not _db_connection:
-        return "Error: No database loaded. Use load_csv_folder tool first."
+        error_output = {
+            "tool_call_id": tool_call_id,
+            "error": "No database loaded. Use load_csv_folder tool first.",
+        }
+        return json.dumps(error_output, indent=2, default=str)
 
     try:
         cursor = _db_connection.cursor()
@@ -262,9 +268,6 @@ def execute_sql_query(query: str, limit: int = 100, ctx: Context | None = None) 
 
         # Execute the query
         cursor.execute(query)
-
-        # Get tool call ID if available
-        tool_call_id = getattr(ctx, "request_id", None) if ctx else None
 
         # Handle different types of queries
         if query_upper.startswith("SELECT"):

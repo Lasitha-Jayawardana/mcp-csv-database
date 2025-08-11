@@ -97,8 +97,10 @@ class TestCSVDatabaseServer:
     def test_load_nonexistent_folder(self):
         """Test loading from non-existent folder"""
         result = load_csv_folder("/nonexistent/folder")
-        assert "Error: Folder" in result
-        assert "does not exist" in result
+        data = json.loads(result)
+        assert "error" in data
+        assert "Folder" in data["error"]
+        assert "does not exist" in data["error"]
 
     def test_list_loaded_tables(self, sample_data_dir):
         """Test listing loaded tables"""
@@ -255,13 +257,17 @@ class TestCSVDatabaseServer:
         clear_database()  # Ensure clean state
 
         result = execute_sql_query("SELECT * FROM test")
-        assert "Error: No database loaded" in result
+        data = json.loads(result)
+        assert "error" in data
+        assert "No database loaded" in data["error"]
 
         result = get_database_schema()
         assert "No database loaded" in result
 
         result = get_table_info("test")
-        assert "Error: No database loaded" in result
+        data = json.loads(result)
+        assert "error" in data
+        assert "No database loaded" in data["error"]
 
     def test_get_data_summary(self, sample_data_dir):
         """Test getting data summary"""
