@@ -251,7 +251,18 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Changelog
 
-### v0.1.3 (Latest)
+### v0.1.5 (Latest)
+- **Enhanced Tool Call Tracking**: All tools now return tool call IDs for improved request tracking and debugging
+- **Consistent JSON Response Format**: Standardized response structure across all tools with tool_call_id field
+- **Improved Error Handling**: Enhanced error responses with structured JSON format including tool call context
+- **Better Development Experience**: Improved tool response consistency for MCP client integration
+
+### v0.1.4
+- Fixed entry point configuration and package distribution
+- Enhanced CLI stability and error handling
+- Improved PyPI publishing workflow
+
+### v0.1.3
 - Enhanced CLI interface with positional argument support for CSV folder paths
 - Improved command-line help with comprehensive examples and tool descriptions
 - Fixed mypy type checking and added pandas-stubs for better development experience

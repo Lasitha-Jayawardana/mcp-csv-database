@@ -125,3 +125,4 @@ The test suite (`tests/test_server.py`) uses:
 - Test coverage requirement: 80% minimum
 - CSV separator detection supports European (`;`) and US (`,`) formats
 - Database files are created in system temp directory with automatic cleanup
+- Dont add any data related Claude Code.
