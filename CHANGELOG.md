@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.1.5] - 2024-08-12
+## [0.1.6] - 2024-08-12
 
 ### Changed
 - **BREAKING**: All MCP tool functions now return structured XML instead of plain text

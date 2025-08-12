@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-csv-database"
-version = "0.1.5"
+version = "0.1.6"
 description = "MCP server for CSV file management and SQL querying"
 readme = "README.md"
 requires-python = ">=3.10"
