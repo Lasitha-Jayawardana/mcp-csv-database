@@ -4,10 +4,11 @@ MCP Server for CSV File Management
 Loads CSV files from a folder into a temporary SQLite database and provides SQL query capabilities.
 """
 
-import json
 import os
 import sqlite3
 import tempfile
+import uuid
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -28,8 +29,16 @@ def get_database_schema() -> str:
     """Get the current database schema showing all loaded tables
     and their structure
     """
+    function_results_id = str(uuid.uuid4())[:8]
+
+    root = ET.Element("tool_response")
+    ET.SubElement(root, "function_results_id").text = function_results_id
+    ET.SubElement(root, "tool_name").text = "get_database_schema"
+
     if not _db_connection:
-        return "No database loaded. Use load_csv_folder tool first."
+        ET.SubElement(root, "status").text = "error"
+        ET.SubElement(root, "message").text = "No database loaded. Use load_csv_folder tool first."
+        return ET.tostring(root, encoding="unicode")
 
     try:
         cursor = _db_connection.cursor()
@@ -39,64 +48,82 @@ def get_database_schema() -> str:
         tables = cursor.fetchall()
 
         if not tables:
-            return "Database is empty. No tables loaded."
+            ET.SubElement(root, "status").text = "success"
+            ET.SubElement(root, "message").text = "Database is empty. No tables loaded."
+            return ET.tostring(root, encoding="unicode")
 
-        schema_info = []
+        ET.SubElement(root, "status").text = "success"
+        schema_elem = ET.SubElement(root, "database_schema")
+
         for (table_name,) in tables:
-            schema_info.append(f"\n=== Table: {table_name} ===")
+            table_elem = ET.SubElement(schema_elem, "table")
+            table_elem.set("name", table_name)
 
             # Get table info
             cursor.execute(f"PRAGMA table_info({table_name})")
             columns = cursor.fetchall()
 
-            schema_info.append("Columns:")
+            columns_elem = ET.SubElement(table_elem, "columns")
             for col in columns:
-                col_name, col_type, not_null, default, pk = (
-                    col[1],
-                    col[2],
-                    col[3],
-                    col[4],
-                    col[5],
-                )
-                pk_indicator = " (PRIMARY KEY)" if pk else ""
-                null_indicator = " NOT NULL" if not_null else ""
-                default_indicator = f" DEFAULT {default}" if default else ""
-                schema_info.append(
-                    f"  - {col_name}: {col_type}{pk_indicator}{null_indicator}{default_indicator}"
-                )
+                col_name, col_type, not_null, default, pk = (col[1], col[2], col[3], col[4], col[5])
+                col_elem = ET.SubElement(columns_elem, "column")
+                col_elem.set("name", col_name)
+                col_elem.set("type", col_type)
+                col_elem.set("primary_key", "true" if pk else "false")
+                col_elem.set("not_null", "true" if not_null else "false")
+                if default is not None:
+                    col_elem.set("default", str(default))
 
             # Get row count
             cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
             count = cursor.fetchone()[0]
-            schema_info.append(f"Row count: {count}")
+            ET.SubElement(table_elem, "row_count").text = str(count)
 
             # Show sample data (first 3 rows)
             cursor.execute(f"SELECT * FROM {table_name} LIMIT 3")
             sample_rows = cursor.fetchall()
             if sample_rows:
-                schema_info.append("Sample data:")
+                sample_elem = ET.SubElement(table_elem, "sample_data")
                 column_names = [desc[0] for desc in cursor.description]
-                for row in sample_rows:
-                    row_dict = dict(zip(column_names, row))
-                    schema_info.append(f"  {row_dict}")
+                for i, row in enumerate(sample_rows):
+                    row_elem = ET.SubElement(sample_elem, "row")
+                    row_elem.set("index", str(i + 1))
+                    for col_name, value in zip(column_names, row):
+                        field_elem = ET.SubElement(row_elem, "field")
+                        field_elem.set("name", col_name)
+                        field_elem.text = str(value) if value is not None else "NULL"
 
-        return "\n".join(schema_info)
+        return ET.tostring(root, encoding="unicode")
 
     except Exception as e:
-        return f"Error retrieving schema: {str(e)}"
+        ET.SubElement(root, "status").text = "error"
+        ET.SubElement(root, "message").text = f"Error retrieving schema: {str(e)}"
+        return ET.tostring(root, encoding="unicode")
 
 
 @mcp.tool()
 def list_loaded_tables() -> str:
     """List all currently loaded tables with their source CSV files"""
+    function_results_id = str(uuid.uuid4())[:8]
+
+    root = ET.Element("tool_response")
+    ET.SubElement(root, "function_results_id").text = function_results_id
+    ET.SubElement(root, "tool_name").text = "list_loaded_tables"
+
     if not _loaded_tables:
-        return "No tables loaded."
+        ET.SubElement(root, "status").text = "success"
+        ET.SubElement(root, "message").text = "No tables loaded."
+        return ET.tostring(root, encoding="unicode")
 
-    table_list = []
+    ET.SubElement(root, "status").text = "success"
+    tables_elem = ET.SubElement(root, "loaded_tables")
+
     for table_name, csv_path in _loaded_tables.items():
-        table_list.append(f"- {table_name} (from {csv_path})")
+        table_elem = ET.SubElement(tables_elem, "table")
+        table_elem.set("name", table_name)
+        table_elem.set("source_csv", csv_path)
 
-    return "Loaded tables:\n" + "\n".join(table_list)
+    return ET.tostring(root, encoding="unicode")
 
 
 @mcp.tool()
@@ -111,21 +138,32 @@ def load_csv_folder(folder_path: str, table_prefix: str = "") -> str:
     Returns:
         Status message with details of loaded files
     """
+    function_results_id = str(uuid.uuid4())[:8]
     global _db_connection, _loaded_tables, _db_path
+
+    root = ET.Element("tool_response")
+    ET.SubElement(root, "function_results_id").text = function_results_id
+    ET.SubElement(root, "tool_name").text = "load_csv_folder"
 
     try:
         # Validate folder path
         folder = Path(folder_path)
         if not folder.exists():
-            return f"Error: Folder '{folder_path}' does not exist."
+            ET.SubElement(root, "status").text = "error"
+            ET.SubElement(root, "message").text = f"Folder '{folder_path}' does not exist."
+            return ET.tostring(root, encoding="unicode")
 
         if not folder.is_dir():
-            return f"Error: '{folder_path}' is not a directory."
+            ET.SubElement(root, "status").text = "error"
+            ET.SubElement(root, "message").text = f"'{folder_path}' is not a directory."
+            return ET.tostring(root, encoding="unicode")
 
         # Find CSV files
         csv_files = list(folder.glob("*.csv"))
         if not csv_files:
-            return f"No CSV files found in '{folder_path}'."
+            ET.SubElement(root, "status").text = "error"
+            ET.SubElement(root, "message").text = f"No CSV files found in '{folder_path}'."
+            return ET.tostring(root, encoding="unicode")
 
         # Create temporary database
         if _db_connection:
@@ -139,10 +177,16 @@ def load_csv_folder(folder_path: str, table_prefix: str = "") -> str:
         _db_connection = sqlite3.connect(_db_path)
         _loaded_tables = {}
 
-        results = []
+        ET.SubElement(root, "status").text = "success"
+        ET.SubElement(root, "database_path").text = _db_path
+
+        results_elem = ET.SubElement(root, "load_results")
         successful_loads = 0
 
         for csv_file in csv_files:
+            result_elem = ET.SubElement(results_elem, "file_result")
+            result_elem.set("filename", csv_file.name)
+
             try:
                 # Generate table name
                 table_name = table_prefix + csv_file.stem.replace("-", "_").replace(" ", "_")
@@ -174,22 +218,27 @@ def load_csv_folder(folder_path: str, table_prefix: str = "") -> str:
                 )
 
                 _loaded_tables[table_name] = str(csv_file)
-                results.append(
-                    f"✓ Loaded {csv_file.name} -> table '{table_name}' ({len(df)} rows, {len(df.columns)} columns)"
-                )
+
+                result_elem.set("status", "success")
+                result_elem.set("table_name", table_name)
+                result_elem.set("rows", str(len(df)))
+                result_elem.set("columns", str(len(df.columns)))
                 successful_loads += 1
 
             except Exception as e:
-                results.append(f"✗ Failed to load {csv_file.name}: {str(e)}")
+                result_elem.set("status", "error")
+                result_elem.set("error_message", str(e))
 
-        summary = f"Loaded {successful_loads}/{len(csv_files)} CSV files into temporary database.\n"
-        summary += f"Database path: {_db_path}\n\n"
-        summary += "\n".join(results)
+        summary_elem = ET.SubElement(root, "summary")
+        summary_elem.set("successful_loads", str(successful_loads))
+        summary_elem.set("total_files", str(len(csv_files)))
 
-        return summary
+        return ET.tostring(root, encoding="unicode")
 
     except Exception as e:
-        return f"Error loading CSV folder: {str(e)}"
+        ET.SubElement(root, "status").text = "error"
+        ET.SubElement(root, "message").text = f"Error loading CSV folder: {str(e)}"
+        return ET.tostring(root, encoding="unicode")
 
 
 @mcp.tool()
@@ -202,10 +251,19 @@ def execute_sql_query(query: str, limit: int = 100) -> str:
         limit: Maximum number of rows to return for SELECT queries (default: 100)
 
     Returns:
-        Query results formatted as JSON or execution status
+        Query results formatted as XML or execution status
     """
+    function_results_id = str(uuid.uuid4())[:8]
+
+    root = ET.Element("tool_response")
+    ET.SubElement(root, "function_results_id").text = function_results_id
+    ET.SubElement(root, "tool_name").text = "execute_sql_query"
+    ET.SubElement(root, "query").text = query
+
     if not _db_connection:
-        return "Error: No database loaded. Use load_csv_folder tool first."
+        ET.SubElement(root, "status").text = "error"
+        ET.SubElement(root, "message").text = "No database loaded. Use load_csv_folder tool first."
+        return ET.tostring(root, encoding="unicode")
 
     try:
         cursor = _db_connection.cursor()
@@ -223,7 +281,12 @@ def execute_sql_query(query: str, limit: int = 100) -> str:
             rows = cursor.fetchall()
 
             if not rows:
-                return "Query executed successfully. No results returned."
+                ET.SubElement(root, "status").text = "success"
+                ET.SubElement(root, "query_type").text = "SELECT"
+                ET.SubElement(root, "message").text = (
+                    "Query executed successfully. No results returned."
+                )
+                return ET.tostring(root, encoding="unicode")
 
             # Apply limit for SELECT queries if not already present
             if "LIMIT" not in query_upper and len(rows) > limit:
@@ -232,23 +295,28 @@ def execute_sql_query(query: str, limit: int = 100) -> str:
             else:
                 limited = False
 
-            # Convert to list of dictionaries
-            results = []
-            for row in rows:
-                row_dict = dict(zip(column_names, row))
-                results.append(row_dict)
+            ET.SubElement(root, "status").text = "success"
+            ET.SubElement(root, "query_type").text = "SELECT"
+            ET.SubElement(root, "row_count").text = str(len(rows))
+            ET.SubElement(root, "limited").text = str(limited).lower()
 
-            # Format output
-            output = {
-                "query": query,
-                "query_type": "SELECT",
-                "row_count": len(results),
-                "limited": limited,
-                "columns": column_names,
-                "data": results,
-            }
+            # Add columns
+            columns_elem = ET.SubElement(root, "columns")
+            for col_name in column_names:
+                col_elem = ET.SubElement(columns_elem, "column")
+                col_elem.text = col_name
 
-            return json.dumps(output, indent=2, default=str)
+            # Add data
+            data_elem = ET.SubElement(root, "data")
+            for i, row in enumerate(rows):
+                row_elem = ET.SubElement(data_elem, "row")
+                row_elem.set("index", str(i + 1))
+                for col_name, value in zip(column_names, row):
+                    field_elem = ET.SubElement(row_elem, "field")
+                    field_elem.set("name", col_name)
+                    field_elem.text = str(value) if value is not None else "NULL"
+
+            return ET.tostring(root, encoding="unicode")
 
         else:
             # For non-SELECT queries (INSERT, UPDATE, DELETE, CREATE, etc.)
@@ -258,18 +326,17 @@ def execute_sql_query(query: str, limit: int = 100) -> str:
             # Determine query type
             query_type = query_upper.split()[0] if query_upper.split() else "UNKNOWN"
 
-            output = {
-                "query": query,
-                "query_type": query_type,
-                "rows_affected": rows_affected,
-                "status": "success",
-                "message": f"{query_type} query executed successfully",
-            }
+            ET.SubElement(root, "status").text = "success"
+            ET.SubElement(root, "query_type").text = query_type
+            ET.SubElement(root, "rows_affected").text = str(rows_affected)
+            ET.SubElement(root, "message").text = f"{query_type} query executed successfully"
 
-            return json.dumps(output, indent=2, default=str)
+            return ET.tostring(root, encoding="unicode")
 
     except Exception as e:
-        return f"Error executing query: {str(e)}"
+        ET.SubElement(root, "status").text = "error"
+        ET.SubElement(root, "message").text = f"Error executing query: {str(e)}"
+        return ET.tostring(root, encoding="unicode")
 
 
 @mcp.tool()
@@ -283,8 +350,17 @@ def get_table_info(table_name: str) -> str:
     Returns:
         Detailed table information including schema and sample data
     """
+    function_results_id = str(uuid.uuid4())[:8]
+
+    root = ET.Element("tool_response")
+    ET.SubElement(root, "function_results_id").text = function_results_id
+    ET.SubElement(root, "tool_name").text = "get_table_info"
+    ET.SubElement(root, "table_name").text = table_name
+
     if not _db_connection:
-        return "Error: No database loaded. Use load_csv_folder tool first."
+        ET.SubElement(root, "status").text = "error"
+        ET.SubElement(root, "message").text = "No database loaded. Use load_csv_folder tool first."
+        return ET.tostring(root, encoding="unicode")
 
     try:
         cursor = _db_connection.cursor()
@@ -296,42 +372,60 @@ def get_table_info(table_name: str) -> str:
         )
         if not cursor.fetchone():
             available_tables = list(_loaded_tables.keys())
-            return f"Table '{table_name}' not found. Available tables: {available_tables}"
+            ET.SubElement(root, "status").text = "error"
+            ET.SubElement(root, "message").text = f"Table '{table_name}' not found."
 
-        info = []
-        info.append(f"=== Table: {table_name} ===")
+            available_elem = ET.SubElement(root, "available_tables")
+            for table in available_tables:
+                table_elem = ET.SubElement(available_elem, "table")
+                table_elem.text = table
+            return ET.tostring(root, encoding="unicode")
+
+        ET.SubElement(root, "status").text = "success"
 
         # Source file info
         if table_name in _loaded_tables:
-            info.append(f"Source CSV: {_loaded_tables[table_name]}")
+            ET.SubElement(root, "source_csv").text = _loaded_tables[table_name]
 
         # Column information
         cursor.execute(f"PRAGMA table_info({table_name})")
         columns = cursor.fetchall()
-        info.append(f"\nColumns ({len(columns)}):")
+
+        columns_elem = ET.SubElement(root, "columns")
+        columns_elem.set("count", str(len(columns)))
         for col in columns:
             col_name, col_type = col[1], col[2]
-            info.append(f"  - {col_name}: {col_type}")
+            col_elem = ET.SubElement(columns_elem, "column")
+            col_elem.set("name", col_name)
+            col_elem.set("type", col_type)
 
         # Row count
         cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
         count = cursor.fetchone()[0]
-        info.append(f"\nTotal rows: {count}")
+        ET.SubElement(root, "total_rows").text = str(count)
 
         # Sample data
         cursor.execute(f"SELECT * FROM {table_name} LIMIT 5")
         sample_rows = cursor.fetchall()
         if sample_rows:
-            info.append("\nSample data (first 5 rows):")
+            sample_elem = ET.SubElement(root, "sample_data")
+            sample_elem.set("rows_shown", str(len(sample_rows)))
             column_names = [desc[0] for desc in cursor.description]
-            for i, row in enumerate(sample_rows, 1):
-                row_dict = dict(zip(column_names, row))
-                info.append(f"  Row {i}: {row_dict}")
 
-        return "\n".join(info)
+            for i, row in enumerate(sample_rows, 1):
+                row_elem = ET.SubElement(sample_elem, "row")
+                row_elem.set("index", str(i))
+                for col_name, value in zip(column_names, row):
+                    field_elem = ET.SubElement(row_elem, "field")
+                    field_elem.set("name", col_name)
+                    field_elem.text = str(value) if value is not None else "NULL"
+
+        return ET.tostring(root, encoding="unicode")
 
     except Exception as e:
-        return f"Error getting table info: {str(e)}"
+        ET.SubElement(root, "status").text = "error"
+        ET.SubElement(root, "message").text = f"Error getting table info: {str(e)}"
+        return ET.tostring(root, encoding="unicode")
 
 
 @mcp.tool()
@@ -347,12 +441,24 @@ def create_index(table_name: str, column_name: str, index_name: str = "") -> str
     Returns:
         Status message
     """
+    function_results_id = str(uuid.uuid4())[:8]
+
+    root = ET.Element("tool_response")
+    ET.SubElement(root, "function_results_id").text = function_results_id
+    ET.SubElement(root, "tool_name").text = "create_index"
+    ET.SubElement(root, "table_name").text = table_name
+    ET.SubElement(root, "column_name").text = column_name
+
     if not _db_connection:
-        return "Error: No database loaded. Use load_csv_folder tool first."
+        ET.SubElement(root, "status").text = "error"
+        ET.SubElement(root, "message").text = "No database loaded. Use load_csv_folder tool first."
+        return ET.tostring(root, encoding="unicode")
 
     try:
         if not index_name:
             index_name = f"idx_{table_name}_{column_name}"
+
+        ET.SubElement(root, "index_name").text = index_name
 
         # Sanitize column name if it contains spaces or special characters
         if " " in column_name or any(char in column_name for char in ["-", ".", "(", ")"]):
@@ -361,15 +467,22 @@ def create_index(table_name: str, column_name: str, index_name: str = "") -> str
             column_ref = column_name
 
         query = f'CREATE INDEX IF NOT EXISTS "{index_name}" ON "{table_name}" ({column_ref})'
+        ET.SubElement(root, "sql_query").text = query
 
         cursor = _db_connection.cursor()
         cursor.execute(query)
         _db_connection.commit()
 
-        return f"Index '{index_name}' created successfully on {table_name}.{column_name}"
+        ET.SubElement(root, "status").text = "success"
+        ET.SubElement(root, "message").text = (
+            f"Index '{index_name}' created successfully on {table_name}.{column_name}"
+        )
+        return ET.tostring(root, encoding="unicode")
 
     except Exception as e:
-        return f"Error creating index: {str(e)}"
+        ET.SubElement(root, "status").text = "error"
+        ET.SubElement(root, "message").text = f"Error creating index: {str(e)}"
+        return ET.tostring(root, encoding="unicode")
 
 
 @mcp.tool()
@@ -475,9 +588,16 @@ def clear_database() -> str:
     Returns:
         Status message
     """
+    function_results_id = str(uuid.uuid4())[:8]
     global _db_connection, _loaded_tables, _db_path
 
+    root = ET.Element("tool_response")
+    ET.SubElement(root, "function_results_id").text = function_results_id
+    ET.SubElement(root, "tool_name").text = "clear_database"
+
     try:
+        table_count = len(_loaded_tables)
+
         if _db_connection:
             _db_connection.close()
             _db_connection = None
@@ -486,13 +606,17 @@ def clear_database() -> str:
             os.unlink(_db_path)
             _db_path = None
 
-        table_count = len(_loaded_tables)
         _loaded_tables = {}
 
-        return f"Database cleared. Removed {table_count} tables."
+        ET.SubElement(root, "status").text = "success"
+        ET.SubElement(root, "tables_removed").text = str(table_count)
+        ET.SubElement(root, "message").text = f"Database cleared. Removed {table_count} tables."
+        return ET.tostring(root, encoding="unicode")
 
     except Exception as e:
-        return f"Error clearing database: {str(e)}"
+        ET.SubElement(root, "status").text = "error"
+        ET.SubElement(root, "message").text = f"Error clearing database: {str(e)}"
+        return ET.tostring(root, encoding="unicode")
 
 
 @mcp.tool()

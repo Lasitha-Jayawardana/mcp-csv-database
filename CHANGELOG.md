@@ -7,12 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5] - 2024-08-12
+
+### Changed
+- **BREAKING**: All MCP tool functions now return structured XML instead of plain text
+- Enhanced LLM readability with consistent XML response format
+- Added unique `function_results_id` to all tool responses for better tracking
+
 ### Added
-- Initial project structure for open source distribution
-- Comprehensive test suite with pytest
-- Development tools configuration (black, isort, flake8, mypy)
-- Example usage scripts
-- Contributing guidelines
+- Unique identifier generation for all tool responses
+- Structured XML output format for all MCP tools
+- Enhanced error handling with structured XML responses
+- Better parsing capabilities for LLM consumers
+
+### Technical Details
+- All tool functions now use `uuid.uuid4()[:8]` for unique identification
+- XML structure includes: function_results_id, tool_name, status, and tool-specific data
+- Maintains backward compatibility for core functionality
+- Improved code formatting with black
 
 ## [0.1.0] - 2024-01-XX
 
